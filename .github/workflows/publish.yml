@@ -34,8 +34,8 @@ jobs:
       - name: Get version from package.json
         id: package-version
         run: |
-          echo "version=$(bun eval 'import pkg from "./package.json"; console.log(pkg.version)')" >> $GITHUB_OUTPUT
-          bun eval 'import pkg from "./package.json"; console.log("Current version:", pkg.version)'
+          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+          node -p "console.log('Current version:', require('./package.json').version)"
 
       - name: Check if tag exists
         id: check-tag
@@ -58,9 +58,9 @@ jobs:
           echo "=== dist files ==="
           find dist -maxdepth 2 -type f | sed -e 's/^/ - /'
           echo "=== bin entries from package.json ==="
-          bun eval 'import pkg from "./package.json"; console.log(pkg.bin)'
+          node -p "console.log('Current version:', require('./package.json').version)"
           echo "=== files field ==="
-          bun eval 'import pkg from "./package.json"; console.log(pkg.files)'
+          node -p "console.log(require('./package.json').files)"
 
       - name: Create version tag if not exists
         if: steps.check-tag.outputs.tag_exists == 'false' && github.ref_type == 'branch'
