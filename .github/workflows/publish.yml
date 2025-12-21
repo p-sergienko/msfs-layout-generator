@@ -11,9 +11,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# 1. PERMISSIONS: These must be set at the workflow level for OIDC[citation:1][citation:7]
 permissions:
   contents: write
-  id-token: write
+  id-token: write  # Required for GitHub to generate the OIDC token[citation:1]
 
 jobs:
   publish-npm:
@@ -26,26 +27,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Bun with Node fallback
+      # 2. SETUP NODE & NPM: Use setup-node, which handles OIDC correctly
+      - name: Setup Node.js and npm
+        uses: actions/setup-node@v4  # Or @v4, both support OIDC[citation:1]
+        with:
+          node-version: '24'  # Use Node 24 or later[citation:1][citation:7]
+          registry-url: 'https://registry.npmjs.org'
+
+      # 3. CLEAR TOKENS: Prevent any default token from interfering with OIDC[citation:3]
+      - name: Clear potential conflicting npm tokens
+        run: |
+          npm config delete //registry.npmjs.org/:_authToken
+          # Also unset the environment variable
+          echo "NODE_AUTH_TOKEN=" >> $GITHUB_ENV
+
+      # 4. BUN SETUP (if still needed for builds)
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-
-      - name: Get version from package.json
-        id: package-version
-        run: |
-          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-          node -p "console.log('Current version:', require('./package.json').version)"
-
-      - name: Check if tag exists
-        id: check-tag
-        run: |
-          VERSION=${{ steps.package-version.outputs.version }}
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "tag_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "tag_exists=false" >> $GITHUB_OUTPUT
-          fi
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -57,30 +56,20 @@ jobs:
         run: |
           echo "=== dist files ==="
           find dist -maxdepth 2 -type f | sed -e 's/^/ - /'
-          echo "=== bin entries from package.json ==="
-          node -p "console.log('Current version:', require('./package.json').version)"
-          echo "=== files field ==="
-          node -p "console.log(require('./package.json').files)"
+          echo "=== files field from package.json ==="
+          node -p "JSON.stringify(require('./package.json').files, null, 2)"
 
-      - name: Create version tag if not exists
-        if: steps.check-tag.outputs.tag_exists == 'false' && github.ref_type == 'branch'
-        run: |
-          VERSION=${{ steps.package-version.outputs.version }}
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git tag -a "v$VERSION" -m "Release v$VERSION"
-          git push origin "v$VERSION"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify npm CLI version for OIDC
+        run: npm --version
+        # Trusted Publishing requires npm CLI version 11.5.1 or later[citation:1][citation:2]
 
-      # Publish with OIDC
-      - name: Publish (OIDC)
-        uses: actions/setup-node@v2
-        with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-        run: npm publish --access public --provenance
+      # 5. PUBLISH: Use a clean npm publish command
+      - name: Publish to npm (OIDC)
+        run: npm publish --access public
+        # The --provenance flag is NOT needed; it's automatic with OIDC[citation:1][citation:2]
+        # OIDC authentication happens automatically via the registry-url and permissions.
 
+      # 6. CREATE RELEASE (Optional, based on your needs)
       - name: Create GitHub Release
         if: success() && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
@@ -88,5 +77,3 @@ jobs:
           name: Release v${{ steps.package-version.outputs.version }}
           generate_release_notes: true
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') || contains(github.ref, 'rc') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
