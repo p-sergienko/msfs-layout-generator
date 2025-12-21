@@ -12,7 +12,9 @@
     }
   },
   "sideEffects": false,
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc && tsc-alias",
     "dev": "ts-node src/cli.ts",
@@ -20,8 +22,8 @@
     "cli:test": "bun src/cli.ts --help"
   },
   "bin": {
-    "msfs-layout": "./dist/cli.js",
-    "msfs-layout-generator": "./dist/cli.js"
+    "msfs-layout": "dist/cli.js",
+    "msfs-layout-generator": "dist/cli.js"
   },
   "devDependencies": {
     "@types/bun": "latest",
