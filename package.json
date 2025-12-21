@@ -2,7 +2,10 @@
   "name": "msfs-layout-generator",
   "version": "0.1.1",
   "description": "Generate layout.json for MSFS community packages",
-  "repository.url": "https://github.com/p-sergienko/msfs-layout-generator",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/p-sergienko/msfs-layout-generator.git"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
