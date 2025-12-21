@@ -1,5 +1,7 @@
 {
   "name": "msfs-layout-generator",
+  "version": "0.1.0",
+  "description": "Generate layout.json for MSFS community packages",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,7 +16,8 @@
   "scripts": {
     "build": "tsc && tsc-alias",
     "dev": "ts-node src/cli.ts",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "cli:test": "bun src/cli.ts --help"
   },
   "bin": {
     "msfs-layout": "./dist/cli.js",

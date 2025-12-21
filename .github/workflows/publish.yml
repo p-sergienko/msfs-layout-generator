@@ -1,0 +1,123 @@
+name: Publish to NPM
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  release:
+    types: [created, published]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-npm:
+    name: Publish to NPM Registry
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Use Node 24 to ensure a modern npm CLI with OIDC support
+      - name: Setup Node.js (Node 24 -> npm >= required version)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Print versions (debug)
+        run: |
+          node --version
+          npm --version
+
+      - name: Get version from package.json
+        id: package-version
+        run: |
+          echo "version=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
+          echo "Current version: $(node -p \"require('./package.json').version\")"
+
+      - name: Check if tag exists
+        id: check-tag
+        run: |
+          VERSION=${{ steps.package-version.outputs.version }}
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Install dependencies (including devDependencies so tsc is available)
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      # Build
+      - name: Build package
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          echo "=== dist files ==="
+          find dist -maxdepth 2 -type f | sed -e 's/^/ - /'
+          echo "=== bin entries from package.json ==="
+          node -e "console.log(require('./package.json').bin)"
+          echo "=== files list to publish ==="
+          node -e "console.log(require('./package.json').files)"
+
+      # Create tag if missing (optional)
+      - name: Create version tag if not exists
+        if: steps.check-tag.outputs.tag_exists == 'false' && github.ref_type == 'branch'
+        run: |
+          VERSION=${{ steps.package-version.outputs.version }}
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Publish using NPM_TOKEN if present (first-publish fallback)
+      - name: Publish (using NPM_TOKEN if present)
+        if: ${{ secrets.NPM_TOKEN != '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "Using NPM_TOKEN publish path"
+          echo "npm: $(npm --version) node: $(node --version)"
+          if [[ "${{ github.ref }}" == "refs/tags/v"* ]]; then
+            npm publish --access public
+          else
+            npm publish --access public --tag next
+          fi
+
+      # Preferred path: OIDC Trusted publishing (used when no NPM_TOKEN secret)
+      - name: Publish (using OIDC trusted publishing)
+        if: ${{ secrets.NPM_TOKEN == '' }}
+        run: |
+          echo "Using OIDC trusted publishing path (no NPM_TOKEN provided)"
+          echo "npm: $(npm --version) node: $(node --version)"
+          if [[ "${{ github.ref }}" == "refs/tags/v"* ]]; then
+            npm publish --access public
+          else
+            npm publish --access public --tag next
+          fi
+
+      - name: Create GitHub Release
+        if: success() && startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release v${{ steps.package-version.outputs.version }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') || contains(github.ref, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
