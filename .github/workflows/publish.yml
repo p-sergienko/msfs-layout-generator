@@ -19,7 +19,6 @@ jobs:
   publish-npm:
     name: Publish to NPM Registry
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
 
     steps:
       - name: Checkout repository
@@ -27,25 +26,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Use Node 24 to ensure a modern npm CLI with OIDC support
-      - name: Setup Node.js (Node 24 -> npm >= required version)
-        uses: actions/setup-node@v4
+      # Bun with Node fallback
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
-
-      - name: Print versions (debug)
-        run: |
-          node --version
-          npm --version
+          bun-version: latest
 
       - name: Get version from package.json
         id: package-version
         run: |
-          echo "version=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
-          echo "Current version: $(node -p \"require('./package.json').version\")"
+          echo "version=$(bun eval 'import pkg from "./package.json"; console.log(pkg.version)')" >> $GITHUB_OUTPUT
+          bun eval 'import pkg from "./package.json"; console.log("Current version:", pkg.version)'
 
       - name: Check if tag exists
         id: check-tag
@@ -57,24 +47,21 @@ jobs:
             echo "tag_exists=false" >> $GITHUB_OUTPUT
           fi
 
-      # Install dependencies (including devDependencies so tsc is available)
-      - name: Install dependencies (npm ci)
-        run: npm ci
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
-      # Build
       - name: Build package
-        run: npm run build
+        run: bun run build
 
       - name: Verify build output
         run: |
           echo "=== dist files ==="
           find dist -maxdepth 2 -type f | sed -e 's/^/ - /'
           echo "=== bin entries from package.json ==="
-          node -e "console.log(require('./package.json').bin)"
-          echo "=== files list to publish ==="
-          node -e "console.log(require('./package.json').files)"
+          bun eval 'import pkg from "./package.json"; console.log(pkg.bin)'
+          echo "=== files field ==="
+          bun eval 'import pkg from "./package.json"; console.log(pkg.files)'
 
-      # Create tag if missing (optional)
       - name: Create version tag if not exists
         if: steps.check-tag.outputs.tag_exists == 'false' && github.ref_type == 'branch'
         run: |
@@ -86,14 +73,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish (using OIDC trusted publishing)
+      # Publish with OIDC
+      - name: Publish (OIDC)
         run: |
-          echo "Using OIDC trusted publishing path (no NPM_TOKEN provided)"
-          echo "npm: $(npm --version) node: $(node --version)"
+          echo "Using OIDC trusted publishing"
           if [[ "${{ github.ref }}" == "refs/tags/v"* ]]; then
-            npm publish --access public
+            bun x npm publish --access public --provenance
           else
-            npm publish --access public --tag next
+            bun x npm publish --access public --tag next --provenance
           fi
 
       - name: Create GitHub Release
