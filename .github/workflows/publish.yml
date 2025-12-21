@@ -86,23 +86,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Publish using NPM_TOKEN if present (first-publish fallback)
-      - name: Publish (using NPM_TOKEN if present)
-        if: ${{ secrets.NPM_TOKEN != '' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "Using NPM_TOKEN publish path"
-          echo "npm: $(npm --version) node: $(node --version)"
-          if [[ "${{ github.ref }}" == "refs/tags/v"* ]]; then
-            npm publish --access public
-          else
-            npm publish --access public --tag next
-          fi
-
-      # Preferred path: OIDC Trusted publishing (used when no NPM_TOKEN secret)
       - name: Publish (using OIDC trusted publishing)
-        if: ${{ secrets.NPM_TOKEN == '' }}
         run: |
           echo "Using OIDC trusted publishing path (no NPM_TOKEN provided)"
           echo "npm: $(npm --version) node: $(node --version)"
