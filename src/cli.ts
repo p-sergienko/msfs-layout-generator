@@ -8,18 +8,12 @@ import { doProcessLayoutFileCli } from "@utils/doProcessLayoutFileCli";
 // Define the program
 const program = new Command();
 
-// Package metadata
-const PACKAGE_VERSION = '1.0.0';
-const PACKAGE_NAME = 'MSFS Layout Generator';
-
 // Helper function for consistent logging
 const logger = {
     info: (message: string) => console.log(chalk.blue('ℹ'), message),
     success: (message: string) => console.log(chalk.green('✓'), message),
-    warning: (message: string) => console.log(chalk.yellow('⚠'), message),
     error: (message: string) => console.log(chalk.red('✗'), message),
     header: (message: string) => console.log(chalk.bold.cyan(message)),
-    subheader: (message: string) => console.log(chalk.cyan(message)),
     dim: (message: string) => console.log(chalk.dim(message))
 };
 
@@ -45,7 +39,6 @@ const logger = {
 program
     .name('msfs-layout')
     .description(chalk.bold('Generate or update layout.json for MSFS community packages'))
-    .version(PACKAGE_VERSION, '-v, --version', 'Display version information')
     .argument('[directories...]', 'Path to MSFS package directory(ies) containing manifest.json')
     .option('-f, --force', 'Force overwrite existing layout.json without confirmation')
     .option('-q, --quiet', 'Suppress non-essential output')
@@ -57,10 +50,10 @@ program
     .addHelpText('after', `
 ${chalk.bold('Examples:')}
   ${chalk.dim('# Process a single package')}
-  msfs-layout "F:\\fs20\\Community\\fnx-aircraft_CFM_DAEWPUG_B2"
+  msfs-layout "C:\\Route To your\\Community\\Folder"
 
   ${chalk.dim('# Process multiple packages')}
-  msfs-layout "package1" "package2" "package3"
+  msfs-layout "First root" "Second root" "Third one"
 
   ${chalk.dim('# Process current directory')}
   msfs-layout .
@@ -84,7 +77,7 @@ async function handleAction(directories: string[], options: any) {
 
     // Show header if not in quiet mode
     if (!quiet) {
-        logger.header(`${PACKAGE_NAME} v${PACKAGE_VERSION}`);
+        logger.header(`msfs-layout-generator`);
         console.log(); // Empty line
     }
 
