@@ -1,4 +1,4 @@
-import { doProcessLayoutFile } from "@utils/doProcessLayoutFile";
+import { doProcessLayoutFile } from "@utils/processLayout";
 
 /**
  * Process an MSFS package directory to generate/update layout.json
@@ -27,3 +27,4 @@ import { doProcessLayoutFile } from "@utils/doProcessLayoutFile";
  */
 
 export const generateLayout = doProcessLayoutFile;
+export type { ProcessOptions, ProcessResult } from "@/index.d";

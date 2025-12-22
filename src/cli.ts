@@ -3,7 +3,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import * as path from 'path';
-import { doProcessLayoutFileCli } from "@utils/doProcessLayoutFileCli";
+import { doProcessLayoutFileCli } from "@utils/processLayout";
 
 // Define the program
 const program = new Command();
