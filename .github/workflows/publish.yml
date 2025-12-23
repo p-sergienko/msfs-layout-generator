@@ -1,24 +1,24 @@
-name: Publish to NPM
+name: Publish to NPM (Manual)
 
 on:
-  push:
-    branches: [ main ]
-    tags: [ 'v*.*.*' ]
-  release:
-    types: [ created, published ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0, 2.1.0-beta.1)'
+        required: true
+        type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ inputs.version }}
   cancel-in-progress: true
 
-# 1. PERMISSIONS: These must be set at the workflow level for OIDC[citation:1][citation:7]
 permissions:
   contents: write
-  id-token: write  # Required for GitHub to generate the OIDC token[citation:1]
+  id-token: write
 
 jobs:
   publish-npm:
-    name: Publish to NPM Registry
+    name: Publish v${{ inputs.version }}
     runs-on: ubuntu-latest
 
     steps:
@@ -27,14 +27,35 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 2. SETUP NODE & NPM: Use setup-node, which handles OIDC correctly
+      - name: Validate and Set Version
+        id: version-check
+        run: |
+          VERSION="${{ inputs.version }}"
+          CLEAN_VERSION="${VERSION#v}"
+          echo "CLEAN_VERSION=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+
+           PKG_VERSION=$(node -p "require('./package.json').version")
+           if [[ "$CLEAN_VERSION" != "$PKG_VERSION" ]]; then
+             echo "Error: Input version ($CLEAN_VERSION) does not match package.json version ($PKG_VERSION)"
+             exit 1
+          fi
+
+          echo "✅ Will publish and tag version: $CLEAN_VERSION"
+
+      - name: Create Git Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Tag with a leading 'v', using the cleaned version
+          git tag -a "v${{ steps.version-check.outputs.CLEAN_VERSION }}" -m "Release v${{ steps.version-check.outputs.CLEAN_VERSION }}"
+          git push origin "v${{ steps.version-check.outputs.CLEAN_VERSION }}"
+
       - name: Setup Node.js and npm
-        uses: actions/setup-node@v4  # Or @v4, both support OIDC[citation:1]
+        uses: actions/setup-node@v4
         with:
-          node-version: '24'  # Use Node 24 or later[citation:1][citation:7]
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
-      # 3. BUN SETUP (if still needed for builds)
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -54,20 +75,15 @@ jobs:
 
       - name: Verify npm CLI version for OIDC
         run: npm --version
-        # Trusted Publishing requires npm CLI version 11.5.1 or later[citation:1][citation:2]
 
-      # 4. PUBLISH: Use a clean npm publish command
       - name: Publish to npm (OIDC)
         run: npm publish --access public
-        # The --provenance flag is NOT needed; it's automatic with OIDC[citation:1][citation:2]
-        # OIDC authentication happens automatically via the registry-url and permissions.
 
-      # 5. CREATE RELEASE (Optional, based on your needs)
       - name: Create GitHub Release
-        if: success() && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
-          name: Release v${{ steps.package-version.outputs.version }}
+          tag_name: v${{ steps.version-check.outputs.CLEAN_VERSION }}
+          name: Release v${{ steps.version-check.outputs.CLEAN_VERSION }}
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') || contains(github.ref, 'rc') }}
+          prerelease: ${{ contains(inputs.version, 'beta') || contains(inputs.version, 'alpha') || contains(inputs.version, 'rc') }}
           files: scripts/msfs-layout-generator.bat
