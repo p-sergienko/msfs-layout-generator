@@ -96,3 +96,4 @@ jobs:
           name: Release v${{ steps.package-version.outputs.version }}
           generate_release_notes: true
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') || contains(github.ref, 'rc') }}
+          files: scripts/msfs-layout-generator.bat
