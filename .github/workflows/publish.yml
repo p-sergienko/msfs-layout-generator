@@ -34,14 +34,7 @@ jobs:
           node-version: '24'  # Use Node 24 or later[citation:1][citation:7]
           registry-url: 'https://registry.npmjs.org'
 
-      # 3. CLEAR TOKENS: Prevent any default token from interfering with OIDC[citation:3]
-      - name: Clear potential conflicting npm tokens
-        run: |
-          npm config delete //registry.npmjs.org/:_authToken
-          # Also unset the environment variable
-          echo "NODE_AUTH_TOKEN=" >> $GITHUB_ENV
-
-      # 4. BUN SETUP (if still needed for builds)
+      # 3. BUN SETUP (if still needed for builds)
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -63,13 +56,13 @@ jobs:
         run: npm --version
         # Trusted Publishing requires npm CLI version 11.5.1 or later[citation:1][citation:2]
 
-      # 5. PUBLISH: Use a clean npm publish command
+      # 4. PUBLISH: Use a clean npm publish command
       - name: Publish to npm (OIDC)
         run: npm publish --access public
         # The --provenance flag is NOT needed; it's automatic with OIDC[citation:1][citation:2]
         # OIDC authentication happens automatically via the registry-url and permissions.
 
-      # 6. CREATE RELEASE (Optional, based on your needs)
+      # 5. CREATE RELEASE (Optional, based on your needs)
       - name: Create GitHub Release
         if: success() && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
