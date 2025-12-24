@@ -132,11 +132,12 @@ echo 1. Process current directory (where this script is)
 echo 2. Process a single folder ("C:\Your\Folder\With\Your\Add-on")
 echo 3. Process all immediate subfolders within a directory (do not process the whole community folder!)
 echo 4. Process from a .txt file with directory paths
-echo 5. Exit
+echo 5. Watch folder for changes (continuous regeneration)
+echo 6. Exit
 echo.
 
 set "CHOICE="
-set /p CHOICE="Enter your choice (1-5): "
+set /p CHOICE="Enter your choice (1-6): "
 
 :: Validate input
 if "%CHOICE%"=="" (
@@ -145,7 +146,7 @@ if "%CHOICE%"=="" (
     goto :menu
 )
 
-if "%CHOICE%"=="5" (
+if "%CHOICE%"=="6" (
     echo %CYAN%Exiting...%RESET%
     timeout /t 2 /nobreak >nul
     exit /b 0
@@ -386,7 +387,21 @@ if "%CHOICE%"=="1" (
         goto :menu
     )
 
-) else (
+) else if "%CHOICE%"=="5" (
+     :: WATCH MODE - Polling based
+     set "WATCH_DIR="
+     set /p WATCH_DIR="Enter the folder path to watch: "
+
+     if "!WATCH_DIR!"=="" (
+         echo %RED%No folder path entered!%RESET%
+         echo.
+         pause
+         goto :menu
+     )
+
+    :: Run the npm package
+    call msfs-layout "!WATCH_DIR!" --watch
+
     echo %RED%Invalid choice! Please enter 1-5%RESET%
     echo.
     pause
