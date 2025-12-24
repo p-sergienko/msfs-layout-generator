@@ -3,6 +3,8 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import * as path from 'path';
+import * as fs from 'fs';
+import chokidar from 'chokidar';
 import { doProcessLayoutFileCli } from "@utils/processLayout";
 
 // Define the program
@@ -31,6 +33,10 @@ const logger = {
  * msfs-layout "package1" "package2" "package3"
  *
  * @example
+ * // Watch directory for changes
+ * msfs-layout "./my-package" --watch
+ *
+ * @example
  * // Show help
  * msfs-layout --help
  */
@@ -44,6 +50,7 @@ program
     .option('-q, --quiet', 'Suppress non-essential output')
     .option('-d, --debug', 'Enable debug logging for troubleshooting')
     .option('--no-manifest-check', 'Skip manifest.json existence check')
+    .option('-w, --watch', 'Watch directory for changes and regenerate automatically')
     .action(async (directories: string[], options) => {
         await handleAction(directories, options);
     })
@@ -64,16 +71,21 @@ ${chalk.bold('Examples:')}
   ${chalk.dim('# Quiet mode - minimal output')}
   msfs-layout ./my-package --quiet
 
+  ${chalk.dim('# Watch directory for changes')}
+  msfs-layout ./my-package --watch
+
 ${chalk.bold('Notes:')}
   • Each directory should contain a ${chalk.cyan('manifest.json')} file
   • Creates/updates ${chalk.cyan('layout.json')} in the same directory
   • Automatically excludes ${chalk.yellow('_CVT_')} directories
   • Updates ${chalk.cyan('total_package_size')} in manifest.json
+  • Watch mode works with a ${chalk.yellow('single directory')} only
+  • Use ${chalk.cyan('Ctrl+C')} to exit watch mode
   `);
 
 // Handle the main action
 async function handleAction(directories: string[], options: any) {
-    const { force, quiet, debug, manifestCheck } = options;
+    const { force, quiet, debug, manifestCheck, watch } = options;
 
     // Show header if not in quiet mode
     if (!quiet) {
@@ -86,6 +98,18 @@ async function handleAction(directories: string[], options: any) {
         logger.error('No directories specified.');
         logger.info('Use msfs-layout --help for usage information.');
         process.exit(1);
+    }
+
+    if (watch && directories.length > 1) {
+        logger.error('Watch mode only supports a single directory.');
+        logger.info('Please specify only one directory when using --watch flag.');
+        process.exit(1);
+    }
+
+    // Handle watch mode
+    if (watch) {
+        await handleWatchMode(directories[0], { force, quiet, debug, manifestCheck });
+        return;
     }
 
     const errors: string[] = [];
@@ -106,8 +130,8 @@ async function handleAction(directories: string[], options: any) {
             }
 
             // Check if directory exists
-            if (!require('fs').existsSync(fullPath)) {
-                throw new Error(`Directory does not exist`);
+            if (!fs.existsSync(fullPath)) {
+                new Error(`Directory does not exist`);
             }
 
             // Run the main processing function
@@ -174,7 +198,150 @@ async function handleAction(directories: string[], options: any) {
     }
 }
 
-// Helper function to format file sizes
+async function handleWatchMode(dir: string, options: any) {
+    const { quiet, debug, manifestCheck, watchInterval, watchDebounce } = options;
+
+    const fullPath = path.resolve(dir);
+
+    if (!fs.existsSync(fullPath)) {
+        logger.error(`Directory does not exist: ${fullPath}`);
+        process.exit(1);
+    }
+
+    if (!quiet) {
+        logger.info(`Watching: ${chalk.underline(fullPath)}`);
+        logger.info(`Press ${chalk.yellow('Ctrl+C')} to stop watching`);
+        console.log();
+    }
+
+    if (!quiet) {
+        logger.info(`Running initial processing...`);
+    }
+
+    try {
+        await doProcessLayoutFileCli(fullPath, {
+            force: true,
+            quiet,
+            debug,
+            checkManifest: manifestCheck
+        });
+
+        console.log();
+    } catch (error: any) {
+        logger.error(`Initial processing failed: ${error.message}`);
+        if (debug && error.stack) {
+            logger.dim(error.stack);
+        }
+        process.exit(1);
+    }
+
+    let debounceTimer: NodeJS.Timeout;
+    let isProcessing = false;
+    let changeCount = 0;
+
+    const watcher = chokidar.watch(fullPath, {
+        ignored: [
+            path.join(fullPath, 'layout.json'),
+            path.join(fullPath, 'manifest.json')
+        ],
+        ignoreInitial: true,
+        persistent: true,
+        interval: parseInt(watchInterval),
+        depth: 99
+    });
+
+    const processChanges = async () => {
+        if (isProcessing) {
+            if (debug) {
+                logger.dim('Skipping - already processing');
+            }
+            return;
+        }
+
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+            isProcessing = true;
+            changeCount++;
+
+            try {
+                await doProcessLayoutFileCli(fullPath, {
+                    force: true,
+                    quiet: true
+                });
+            } catch (error: any) {
+                const timestamp = new Date().toLocaleTimeString();
+                if (!quiet) {
+                    logger.error(`[${timestamp}] Failed to regenerate: ${error.message}`);
+                    if (debug && error.stack) {
+                        logger.dim(error.stack);
+                    }
+                }
+            } finally {
+                isProcessing = false;
+            }
+        }, parseInt(watchDebounce));
+    };
+
+    const timestamp = new Date().toLocaleTimeString();
+
+    watcher
+        .on('add', (filePath: string) => {
+            if (!quiet) {
+                logger.dim(`[${timestamp}] File added: ${path.relative(fullPath, filePath)}`);
+            }
+            processChanges();
+        })
+        .on('change', (filePath: string) => {
+            if (!quiet) {
+                logger.dim(`[${timestamp}] File changed: ${path.relative(fullPath, filePath)}`);
+            }
+            processChanges();
+        })
+        .on('unlink', (filePath: string) => {
+            if (!quiet) {
+                logger.dim(`[${timestamp}] File removed: ${path.relative(fullPath, filePath)}`);
+            }
+            processChanges();
+        })
+        .on('addDir', (dirPath: string) => {
+            if (!quiet) {
+                logger.dim(`[${timestamp}] Directory added: ${path.relative(fullPath, dirPath)}`);
+            }
+            processChanges();
+        })
+        .on('unlinkDir', (dirPath: string) => {
+            if (!quiet) {
+                logger.dim(`[${timestamp}] Directory removed: ${path.relative(fullPath, dirPath)}`);
+            }
+            processChanges();
+        })
+        .on('error', (error: unknown) => {
+            if (error instanceof Error) {
+                logger.error(`Watcher error: ${error.message}`);
+            }
+        });
+
+    process.on('SIGINT', async () => {
+        if (!quiet) {
+            console.log();
+            logger.info('Stopping watch mode...');
+        }
+
+        await watcher.close();
+
+        if (!quiet) {
+            logger.success(`Watch mode stopped`);
+            logger.info(`Total changes processed: ${changeCount}`);
+        }
+
+        process.exit(0);
+    });
+
+    await new Promise<void>(() => {
+        // This promise never resolves keeping the process alive
+    });
+}
+
 function formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 Bytes';
 
