@@ -1,6 +1,6 @@
 {
   "name": "msfs-layout-generator",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Generate layout.json for MSFS community packages",
   "repository": {
     "type": "git",
