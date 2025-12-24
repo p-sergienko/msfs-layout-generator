@@ -4,13 +4,17 @@
 ![downloads](https://img.shields.io/npm/d18m/msfs-layout-generator) ![npm](https://img.shields.io/npm/v/msfs-layout-generator) ![types](https://img.shields.io/npm/types/msfs-layout-generator) ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 A tool for **Microsoft Flight Simulator (MSFS)** developers to automatically generate and update `layout.json` files for their add-ons.
-  
+
+![terminal](.github/readme.png)
 ---  
 
 ## ✨ Features
 
 - **Automatic Layout Generation**    
   Scans package directories and creates `layout.json` with file metadata
+
+- **Watch changes in Package Directory**    
+  Scans all changes in provided directory and updates `layout.json` accordingly
 
 - **Manifest Integration**    
   Automatically updates `total_package_size` in `manifest.json`
