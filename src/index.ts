@@ -1,10 +1,10 @@
-import { doProcessLayoutFile } from "@utils/processLayout";
+import { doProcessLayoutFile, processLayout } from "@utils/processLayout";
 
 /**
- * Process an MSFS package directory to generate/update layout.json
+ * Process an MSFS package directory to generate/update layout.json (simple API).
  *
- * This function scans all files in the package directory, creates a layout.json
- * with file metadata, and updates the total_package_size in manifest.json.
+ * This is a convenience wrapper around {@link processLayout} that uses default
+ * options and throws on errors. For more control, use {@link processLayout} directly.
  *
  * @param packageDir - Path to the MSFS package directory (must contain manifest.json)
  * @returns Promise that resolves when layout.json has been generated
@@ -14,7 +14,7 @@ import { doProcessLayoutFile } from "@utils/processLayout";
  *
  * @example
  * // Basic usage
- * await doProcessLayoutFile("F:\\fs20\\Community\\my-package");
+ * await generateLayout("F:\\fs20\\Community\\my-package");
  *
  * @example
  * // With error handling
@@ -25,6 +25,7 @@ import { doProcessLayoutFile } from "@utils/processLayout";
  *   console.error("Failed:", error.message);
  * }
  */
-
 export const generateLayout = doProcessLayoutFile;
+
+export { processLayout };
 export type { Content, Layout, Manifest, ProcessOptions, ProcessResult } from "@/types";

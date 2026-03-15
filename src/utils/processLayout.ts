@@ -8,12 +8,46 @@ import { doUpdateManifest } from "@utils/doUpdateManifest";
 import { ProcessOptions, ProcessResult } from "@/types";
 
 /**
- * Unified function to process layout files for MSFS packages
- * Can be used both programmatically and via CLI
+ * Process layout files for MSFS packages with full control over behavior.
  *
- * @param packageDir - Path to MSFS package directory
- * @param options - Processing options
- * @returns Promise<void> if returnResult=false, Promise<ProcessResult> if returnResult=true
+ * Scans all files in the package directory, generates a `layout.json` with
+ * file metadata (path, size, date), and optionally updates `total_package_size`
+ * in `manifest.json`.
+ *
+ * @param packageDir - Absolute or relative path to the MSFS package directory
+ * @param options - Processing options to control behavior
+ * @param options.force - Overwrite existing layout.json (default: `false`)
+ * @param options.quiet - Suppress all console output (default: `false`)
+ * @param options.debug - Enable verbose debug logging (default: `false`)
+ * @param options.checkManifest - Require manifest.json to exist (default: `true`)
+ * @param options.skipManifestUpdate - Skip updating total_package_size in manifest.json (default: `false`)
+ * @param options.returnResult - Return a {@link ProcessResult} object instead of throwing on errors (default: `false`)
+ * @returns `Promise<void>` when `returnResult` is `false`; `Promise<ProcessResult>` when `returnResult` is `true`
+ *
+ * @throws {Error} If directory doesn't exist (when `returnResult` is `false`)
+ * @throws {Error} If manifest.json is missing and `checkManifest` is `true` (when `returnResult` is `false`)
+ * @throws {Error} If no valid files are found (when `returnResult` is `false`)
+ *
+ * @example
+ * // Overwrite existing layout.json silently
+ * await processLayout("./my-package", { force: true, quiet: true });
+ *
+ * @example
+ * // Get a result object instead of throwing
+ * const result = await processLayout("./my-package", { returnResult: true, force: true });
+ * if (result.success) {
+ *   console.log(`Processed ${result.fileCount} files (${result.totalSize} bytes)`);
+ * } else {
+ *   console.error(result.message);
+ * }
+ *
+ * @example
+ * // Generate layout without requiring or updating manifest.json
+ * await processLayout("./my-package", {
+ *   force: true,
+ *   checkManifest: false,
+ *   skipManifestUpdate: true
+ * });
  */
 
 export const processLayout = async (
