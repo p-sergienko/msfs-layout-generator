@@ -1,11 +1,11 @@
 import * as path from "node:path";
-import type { Layout, Content } from "@/index.d";
+import type { Layout, Content } from "@/types";
 import { getAllFiles } from "@utils/getAllFiles";
 import { doExcludeFile } from "@utils/doExcludeFile";
 import { stat, writeFile, constants, access } from "fs/promises";
 import { getWindowsFileTime } from "@utils/getWindowsFileTime";
 import { doUpdateManifest } from "@utils/doUpdateManifest";
-import { ProcessOptions, ProcessResult } from "@/index.d";
+import { ProcessOptions, ProcessResult } from "@/types";
 
 /**
  * Unified function to process layout files for MSFS packages

@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "fs/promises";
-import type { Manifest } from "@/index.d";
+import type { Manifest } from "@/types";
 import { ManifestWritingError } from "@errors";
 
 export const doUpdateManifest = async (manifestPath: string, totalPackageSize: number): Promise<void> => {

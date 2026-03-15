@@ -27,4 +27,4 @@ import { doProcessLayoutFile } from "@utils/processLayout";
  */
 
 export const generateLayout = doProcessLayoutFile;
-export type { ProcessOptions, ProcessResult } from "@/index.d";
+export type { Content, Layout, Manifest, ProcessOptions, ProcessResult } from "@/types";
