@@ -7,21 +7,29 @@ export const getAllFiles = async (dirPath: string) => {
 
     async function readDirectory(currentPath: string): Promise<void> {
         try {
-            for (const item of await readdir(currentPath)) {
-                const itemPath = path.join(currentPath, item);
-                const receivedFile = await stat(itemPath);
+            const directs = await readdir(currentPath, { withFileTypes: true });
 
-                if (receivedFile.isDirectory()) {
+            for (const dirent of directs) {
+                const itemPath = path.join(currentPath, dirent.name);
+
+                if (dirent.isDirectory()) {
                     await readDirectory(itemPath);
-                } else {
+                } else if (dirent.isFile()) {
                     files.push(itemPath);
+                } else if (dirent.isSymbolicLink()) {
+                    const stats = await stat(itemPath);
+                    if (stats.isDirectory()) {
+                        await readDirectory(itemPath);
+                    } else {
+                        files.push(itemPath);
+                    }
                 }
             }
         } catch (e) {
             if (e instanceof Error) {
-                throw new ReadingDirError(`Failed to read directory ${path}: ${e.message}.`);
+                throw new ReadingDirError(`Failed to read directory ${currentPath}: ${e.message}.`);
             }
-            throw new ReadingDirError(`Failed to read directory. Path: ${path}`);
+            throw new ReadingDirError(`Failed to read directory. Path: ${currentPath}`);
         }
     }
 

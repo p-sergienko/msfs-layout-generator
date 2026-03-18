@@ -224,9 +224,8 @@ export const processLayout = async (
                 layout.content.push(content);
 
             } catch (error: any) {
-                if (debug) {
-                    log(`Error processing file ${file}: ${error.message}`, 'info');
-                }
+                const msg = `Error processing file ${file}: ${error.message}`;
+                log(msg, debug ? 'info' : 'warn');
                 excludedCount++;
             }
         }
