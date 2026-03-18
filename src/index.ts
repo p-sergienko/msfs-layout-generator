@@ -3,8 +3,8 @@ import { doProcessLayoutFile, processLayout } from "@utils/processLayout";
 /**
  * Process an MSFS package directory to generate/update layout.json (simple API).
  *
- * This is a convenience wrapper around {@link processLayout} that uses default
- * options and throws on errors. For more control, use {@link processLayout} directly.
+ * This is a convenience wrapper around {@link processLayout} that throws on errors.
+ * You can pass the same processing options except `returnResult`.
  *
  * @param packageDir - Path to the MSFS package directory (must contain manifest.json)
  * @returns Promise that resolves when layout.json has been generated
@@ -15,6 +15,10 @@ import { doProcessLayoutFile, processLayout } from "@utils/processLayout";
  * @example
  * // Basic usage
  * await generateLayout("F:\\fs20\\Community\\my-package");
+ *
+ * @example
+ * // Overwrite existing layout.json
+ * await generateLayout("./my-package", { force: true });
  *
  * @example
  * // With error handling

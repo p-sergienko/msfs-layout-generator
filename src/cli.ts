@@ -51,6 +51,8 @@ program
     .option('-d, --debug', 'Enable debug logging for troubleshooting')
     .option('--no-manifest-check', 'Skip manifest.json existence check')
     .option('-w, --watch', 'Watch directory for changes and regenerate automatically')
+    .option('--watch-debounce <ms>', 'Debounce delay in watch mode (default: 750ms)', '750')
+    .option('--watch-interval <ms>', 'Polling interval in watch mode when polling is used (default: 100)', '100')
     .action(async (directories: string[], options) => {
         await handleAction(directories, options);
     })
@@ -235,8 +237,12 @@ async function handleWatchMode(dir: string, options: any) {
         process.exit(1);
     }
 
-    let debounceTimer: NodeJS.Timeout;
+    const debounceMs = Number.parseInt(watchDebounce ?? '750', 10);
+    const intervalMs = Number.parseInt(watchInterval ?? '100', 10);
+
+    let debounceTimer: NodeJS.Timeout | undefined;
     let isProcessing = false;
+    let hasPendingChanges = false;
     let changeCount = 0;
 
     const watcher = chokidar.watch(fullPath, {
@@ -246,40 +252,49 @@ async function handleWatchMode(dir: string, options: any) {
         ],
         ignoreInitial: true,
         persistent: true,
-        interval: parseInt(watchInterval),
+        interval: Number.isFinite(intervalMs) ? intervalMs : 100,
         depth: 99
     });
 
-    const processChanges = async () => {
+    const processQueuedChanges = async () => {
         if (isProcessing) {
-            if (debug) {
-                logger.dim('Skipping - already processing');
-            }
+            // Keep a rerun request so events arriving during a write/copy are not lost.
+            hasPendingChanges = true;
             return;
         }
 
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(async () => {
-            isProcessing = true;
-            changeCount++;
+        isProcessing = true;
+        try {
+            do {
+                hasPendingChanges = false;
+                changeCount++;
 
-            try {
                 await doProcessLayoutFileCli(fullPath, {
                     force: true,
                     quiet: true
                 });
-            } catch (error: any) {
-                const timestamp = new Date().toLocaleTimeString();
-                if (!quiet) {
-                    logger.error(`[${timestamp}] Failed to regenerate: ${error.message}`);
-                    if (debug && error.stack) {
-                        logger.dim(error.stack);
-                    }
+            } while (hasPendingChanges);
+        } catch (error: any) {
+            const timestamp = new Date().toLocaleTimeString();
+            if (!quiet) {
+                logger.error(`[${timestamp}] Failed to regenerate: ${error.message}`);
+                if (debug && error.stack) {
+                    logger.dim(error.stack);
                 }
-            } finally {
-                isProcessing = false;
             }
-        }, parseInt(watchDebounce));
+        } finally {
+            isProcessing = false;
+        }
+    };
+
+    const scheduleProcessing = () => {
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+
+        debounceTimer = setTimeout(() => {
+            void processQueuedChanges();
+        }, Number.isFinite(debounceMs) ? debounceMs : 750);
     };
 
     const timestamp = new Date().toLocaleTimeString();
@@ -289,31 +304,31 @@ async function handleWatchMode(dir: string, options: any) {
             if (!quiet) {
                 logger.dim(`[${timestamp}] File added: ${path.relative(fullPath, filePath)}`);
             }
-            processChanges();
+            scheduleProcessing();
         })
         .on('change', (filePath: string) => {
             if (!quiet) {
                 logger.dim(`[${timestamp}] File changed: ${path.relative(fullPath, filePath)}`);
             }
-            processChanges();
+            scheduleProcessing();
         })
         .on('unlink', (filePath: string) => {
             if (!quiet) {
                 logger.dim(`[${timestamp}] File removed: ${path.relative(fullPath, filePath)}`);
             }
-            processChanges();
+            scheduleProcessing();
         })
         .on('addDir', (dirPath: string) => {
             if (!quiet) {
                 logger.dim(`[${timestamp}] Directory added: ${path.relative(fullPath, dirPath)}`);
             }
-            processChanges();
+            scheduleProcessing();
         })
         .on('unlinkDir', (dirPath: string) => {
             if (!quiet) {
                 logger.dim(`[${timestamp}] Directory removed: ${path.relative(fullPath, dirPath)}`);
             }
-            processChanges();
+            scheduleProcessing();
         })
         .on('error', (error: unknown) => {
             if (error instanceof Error) {

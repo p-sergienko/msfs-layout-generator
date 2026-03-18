@@ -191,16 +191,18 @@ export const processLayout = async (
         }
 
         for (const file of allFiles) {
-            // Check for long file paths (Windows limitation)
-            if (file.length > 259) {
+            const relativePath = path.relative(packageDir, file).split(path.sep).join('/');
+
+            // Windows MAX_PATH checks should only be enforced on Windows hosts.
+            if (process.platform === 'win32' && file.length > 259) {
                 hasLongPath = true;
+                excludedCount++;
                 if (debug) {
                     log(`Skipping long path: ${file}`, 'info');
                 }
                 continue;
             }
 
-            const relativePath = path.relative(packageDir, file).split(path.sep).join('/');
             const isExcluded = doExcludeFile(relativePath);
 
             try {
@@ -311,8 +313,11 @@ export const processLayout = async (
     }
 };
 
-export const doProcessLayoutFile = (layoutPath: string): Promise<void> =>
-    processLayout(layoutPath, { returnResult: false }) as Promise<void>;
+export const doProcessLayoutFile = (
+    packageDir: string,
+    options: Omit<ProcessOptions, 'returnResult'> = {}
+): Promise<void> =>
+    processLayout(packageDir, { ...options, returnResult: false }) as Promise<void>;
 
 export const doProcessLayoutFileCli = (packageDir: string, options: Omit<ProcessOptions, 'returnResult'> = {}): Promise<ProcessResult> =>
     processLayout(packageDir, { ...options, returnResult: true }) as Promise<ProcessResult>;
